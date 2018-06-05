@@ -617,6 +617,14 @@ ver_to_int ()
 	echo "$@" | awk -F. '{ printf("%d%03d%03d", $1,$2,$3); }'
 }
 
+# Generates a domain name safe string (alphanumeric characters and hyphens).
+# Invalid characters are replaced with hyphens.
+# The resulting string is converted to lowercase, since browsers are doing this automatically.
+safe_string ()
+{
+	(sed -e 's/[^A-Za-z0-9]/-/g' | awk '{print tolower($0)}') <<< "$1"
+}
+
 #---------------------------- Control functions -------------------------------
 
 # Check that project root exists and Docker is running.
@@ -838,6 +846,17 @@ check_project_unique ()
 	done
 }
 
+# Checks that an valid virtual_host is being used
+check_valid_valid_host ()
+{
+    if [[ ! "$VIRTUAL_HOST" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]$ ]]; then
+        echo-error "Invalid virtual_host" \
+            "Use only lowercase letters, numbers and dashes. Do not use underscores."
+            ""
+        exit 1
+    fi
+}
+
 # Yes/no confirmation dialog with an optional message
 # @param $1 confirmation message
 # @param $2 --no-exit
@@ -911,6 +930,7 @@ _stop_containers ()
 
 	load_configuration
 	check_project_unique
+	check_valid_valid_host
 	echo-green "Stopping services..."
 	docker-compose stop "$@"
 }
@@ -2402,6 +2422,7 @@ up ()
 	# This should not be the last command in a function as it will exit 1 on non Linux/"native" setups.
 	( is_linux || is_docker_native ) && ssh_add
 	check_project_unique
+	check_valid_valid_host
 
 	# Temporary workaround for NFS issues on Mac
 	# See https://github.com/docksal/docksal/issues/265
@@ -2433,7 +2454,7 @@ restart ()
 	# This should not be the last command in a function as it will exit 1 on non Linux/"native" setups.
 	( is_linux || is_docker_native ) && ssh_add
 	check_project_unique
-
+    check_valid_valid_host
 	_restart_containers "$@"
 	unison_sync_wait
 }
@@ -2463,6 +2484,7 @@ project_status ()
 {
 	check_docksal_environment
 	check_project_unique
+	check_valid_valid_host
 
 	docker-compose ps
 }
@@ -4506,7 +4528,7 @@ load_configuration ()
 	fi
 
 	# Set defaults
-	export VIRTUAL_HOST=${VIRTUAL_HOST:-$COMPOSE_PROJECT_NAME_SAFE.$DOCKSAL_DNS_DOMAIN}
+	export VIRTUAL_HOST=${VIRTUAL_HOST:-$(safe_string $COMPOSE_PROJECT_NAME_SAFE).$DOCKSAL_DNS_DOMAIN}
 	export DOCROOT=${DOCROOT:-docroot}
 
 	# Make project root globally available
